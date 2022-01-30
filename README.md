@@ -1,6 +1,7 @@
 # Quick Docker LEMP Development Stack
 Quick development setup for Linux, Nginx, MySQL, PHP, with PHPMyAdmin & Redis
 
+### Not ready for production use
 
 ## Requirements
 Requires Docker Desktop 3.x or later
@@ -23,7 +24,7 @@ Quick development setup for Linux, Nginx, MySQL, PHP, with PHPMyAdmin & Redis fo
 Duplicate and rename the .env.example file to .env in the root folder.
 Update the values with your own.
 
-In the `src` folder create a `web` folder.
+In the `src` folder create a `web` folder if it does not exist.
 ```
 mkdir -p [/path/to/project]/src/web
 ```
@@ -37,7 +38,7 @@ echo "127.0.0.1 dev.example.com >> /etc/hosts"
 ### To use with the SSL option (optional)
 In the `docker/ssl` folder, create a folder with domain name `example.com`.
 ```
-mkdir -p [/path/to/project]/docker/ssl
+mkdir -p [/path/to/project]/docker/ssl/example.com
 ```
 Place your `fullchain.pem` and `privkey.pem` certs in 
 the `docker/ssl/example.com` folder.
@@ -64,10 +65,13 @@ To stop instance
 ```
 docker-compose down
 ```
-
+To view the running containers run
+```
+docker ps
+```
 
 ## Roadmap
 
-* Released it
+* 1/30/22 - Released it
 
 Brought to you by [Bryan E. Schultz](https://www.bryanschultz.net)
