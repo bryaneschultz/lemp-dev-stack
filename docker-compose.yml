@@ -1,0 +1,155 @@
+version: "3.8"
+
+services:
+#---------------------------------------------------------------------#
+# NGINX
+#---------------------------------------------------------------------#
+  server:
+    build:
+      context: ./docker/images/
+      dockerfile: nginx/Dockerfile
+      args:
+        TIMEZONE: "${TIMEZONE}"
+        PMA_SITE_URL: "${PMA_SITE_URL}"
+        PRIMARY_DOMAIN: "${PRIMARY_DOMAIN}"
+        PRIMARY_SITE_URL: "${PRIMARY_SITE_URL}"
+        USE_SSL: "${USE_SSL}"
+        VIRTUAL_HOST: "${PRIMARY_SITE_URL}, ${PMA_SITE_URL}"
+    container_name: nginx
+    depends_on:
+      - app
+    environment:
+      PHP_IDE_CONFIG: "serverName=${PRIMARY_SITE_URL}"
+      SERVICE_NAME: server
+      SERVICE_TAGS: "${ENVIRONMENT}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    ports:
+      - "80:80"
+      - "443:443"
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - ./docker/logs:/var/log/nginx
+      - ./docker/ssl:/etc/ssl/:ro
+      - ./src:/var/www/${PRIMARY_SITE_URL}/src:ro
+      - phpmyadmin:/var/www/html:ro
+    working_dir: /var/www
+#---------------------------------------------------------------------#
+# PHP
+#---------------------------------------------------------------------#
+  app:
+    build:
+      context: ./docker/images/
+      dockerfile: php-fpm/Dockerfile
+      args:
+        TIMEZONE: "${TIMEZONE}"
+    container_name: php
+    depends_on:
+      - database
+    environment:
+      PRIMARY_SITE_URL: "${PRIMARY_SITE_URL}"
+      SERVICE_NAME: app
+      SERVICE_TAGS: "${ENVIRONMENT}"
+    networks:
+      - app-network
+    restart: unless-stopped
+    tty: true
+    user: "www-data:www-data"
+    volumes:
+      - ./docker/logs:/var/log/php
+      - ./src:/var/www/${PRIMARY_SITE_URL}/src
+    working_dir: /var/www/${PRIMARY_SITE_URL}/src
+#---------------------------------------------------------------------#
+# MySQL
+#---------------------------------------------------------------------#
+  database:
+    build:
+      context: ./docker/images/
+      dockerfile: mysql/Dockerfile
+      args:
+        TIMEZONE: "${TIMEZONE}"
+    cap_add:
+      - SYS_NICE  # CAP_SYS_NICE
+    container_name: mysql
+    environment:
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      SERVICE_NAME: "mysql"
+      SERVICE_TAGS: "${ENVIRONMENT}"
+    networks:
+      - app-network
+    ports:
+      - "3306:3306"
+    restart: always
+    volumes:
+      - ./docker/images/mysql/conf.d/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./docker/images/mysql/mysql.conf.d/my.cnf:/etc/mysql/mysql.conf.d/my.cnf:ro
+      - ./docker/logs:/var/log/mysql
+      - mysql:/var/lib/mysql
+#---------------------------------------------------------------------#
+# Redis
+#---------------------------------------------------------------------#
+  cache:
+    build:
+      context: ./docker/images/
+      dockerfile: redis/Dockerfile
+      args:
+        TIMEZONE: "${TIMEZONE}"
+    command: >
+      "--requirepass ${REDIS_PASSWORD}"
+    container_name: redis
+    depends_on:
+      - app
+    environment:
+      SERVICE_NAME: "redis"
+      SERVICE_TAGS: "${ENVIRONMENT}"
+    networks:
+      - app-network
+    tty: true
+    restart: always
+    sysctls:
+      - net.core.somaxconn=65535
+    volumes:
+      - ./docker/images/redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./docker/cache:/data
+    working_dir: /data
+#---------------------------------------------------------------------#
+# phpMyAdmin
+#---------------------------------------------------------------------#
+  phpmyadmin:
+    image: phpmyadmin:fpm-alpine
+    container_name: phpmyadmin
+    depends_on:
+      - database
+    environment:
+      PMA_ARBITRARY: "${PMA_ARBITRARY}"
+      PMA_ABSOLUTE_URI: "${PMA_ABSOLUTE_URI}"
+      PMA_PMADB: "${PMA_DB}"
+      PMA_HOST: "${PMA_HOST}"
+      PMA_PASSWORD: "${PMA_PASSWORD}"
+      PMA_PORT: "${PMA_PORT}"
+      PMA_USER: "${PMA_USER}"
+      SERVICE_NAME: "phpmyadmin"
+      SERVICE_TAGS: "${ENVIRONMENT}"
+    networks:
+      - app-network
+    restart: always
+    volumes:
+      - phpmyadmin:/var/www/html
+#---------------------------------------------------------------------#
+# Networks
+#---------------------------------------------------------------------#
+networks:
+  app-network:
+    driver: bridge
+#---------------------------------------------------------------------#
+# Volumes
+#---------------------------------------------------------------------#
+volumes:
+  mysql:
+    driver: local
+  phpmyadmin:
+    driver: local
