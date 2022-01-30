@@ -2,4 +2,4 @@
 .thumbsdb
 .env
 .idea
-/src
+/src/web/*
